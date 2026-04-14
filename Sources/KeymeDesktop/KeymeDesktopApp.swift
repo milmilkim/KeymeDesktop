@@ -14,6 +14,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var popover: NSPopover!
     private var appState: AppState!
     private var miniPanelVM: MiniPanelViewModel!
+    private var hotkeyService: HotkeyService!
+    private var quickSavePanel: QuickSavePanelController!
+    private var quickSaveVM: QuickSaveViewModel!
+    private var clipboardMonitor: ClipboardMonitor!
+    private var toastWindow: ClipboardToastWindow!
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         appState = try! AppState()
@@ -33,6 +38,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             })
         )
 
+        clipboardMonitor = ClipboardMonitor()
+        quickSaveVM = QuickSaveViewModel(
+            providerRepo: appState.providerRepo,
+            keyRepo: appState.keyRepo,
+            clipboardMonitor: clipboardMonitor
+        )
+        quickSavePanel = QuickSavePanelController()
+        toastWindow = ClipboardToastWindow()
+
+        hotkeyService = HotkeyService { [weak self] in
+            self?.showQuickSave()
+        }
+        hotkeyService.register()
+
+        clipboardMonitor.startMonitoring { [weak self] item in
+            self?.toastWindow.show(item: item) {
+                self?.showQuickSave()
+            }
+        }
+
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         if let button = statusItem.button {
             button.image = NSImage(systemSymbolName: "key.fill", accessibilityDescription: "Keyme")
@@ -48,6 +73,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             popover.performClose(nil)
         } else {
             popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
+        }
+    }
+
+    private func showQuickSave() {
+        Task { @MainActor in
+            quickSaveVM.reset()
+            await quickSaveVM.load()
+            quickSavePanel.show(vm: quickSaveVM)
         }
     }
 
