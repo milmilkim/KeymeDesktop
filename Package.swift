@@ -15,5 +15,10 @@ let package = Package(
             ],
             path: "Sources/KeymeDesktop"
         ),
+        .testTarget(
+            name: "KeymeDesktopTests",
+            dependencies: ["KeymeDesktop"],
+            path: "Tests/KeymeDesktopTests"
+        ),
     ]
 )
