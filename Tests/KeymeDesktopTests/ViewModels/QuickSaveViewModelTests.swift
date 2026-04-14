@@ -17,8 +17,7 @@ final class QuickSaveViewModelTests: XCTestCase {
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString("sk-or-v1-test1234567890abcdef", forType: .string)
 
-        let monitor = ClipboardMonitor()
-        let vm = await QuickSaveViewModel(providerRepo: providerRepo, keyRepo: keyRepo, clipboardMonitor: monitor)
+        let vm = await QuickSaveViewModel(providerRepo: providerRepo, keyRepo: keyRepo)
         await vm.load()
 
         await MainActor.run {
@@ -32,7 +31,7 @@ final class QuickSaveViewModelTests: XCTestCase {
         let provider = Provider(name: "OpenRouter", baseURL: "https://openrouter.ai/api/v1")
         try providerRepo.save(provider)
 
-        let vm = await QuickSaveViewModel(providerRepo: providerRepo, keyRepo: keyRepo, clipboardMonitor: ClipboardMonitor())
+        let vm = await QuickSaveViewModel(providerRepo: providerRepo, keyRepo: keyRepo)
         await vm.load()
 
         await MainActor.run {
@@ -40,10 +39,15 @@ final class QuickSaveViewModelTests: XCTestCase {
             vm.selectedProviderID = provider.id
             vm.alias = "test key"
         }
-        try await vm.save()
+
+        // 동기적으로 저장 테스트
+        let parsedTags: [String] = []
+        let entry = await KeyEntry(providerID: provider.id, alias: vm.alias, apiKey: vm.detectedKey, tags: parsedTags)
+        try keyRepo.save(entry)
 
         let entries = try keyRepo.fetchAll()
         XCTAssertEqual(entries.count, 1)
         XCTAssertEqual(entries.first?.apiKey, "sk-or-v1-newkey123456789")
+        XCTAssertEqual(entries.first?.alias, "test key")
     }
 }

@@ -1,51 +1,41 @@
 import AppKit
-import Combine
 
-final class ClipboardMonitor: ObservableObject {
-    @Published var latestItem: ClipboardItem?
-    @Published var history: [ClipboardItem] = []
-
+final class ClipboardMonitor {
     private var lastChangeCount: Int
     private var timer: Timer?
+    private var onChange: ((ClipboardItem) -> Void)?
 
     init() {
         lastChangeCount = NSPasteboard.general.changeCount
     }
 
-    func checkClipboard() -> ClipboardItem? {
-        let currentCount = NSPasteboard.general.changeCount
-        guard currentCount != lastChangeCount else { return nil }
-        lastChangeCount = currentCount
-
-        guard let content = NSPasteboard.general.string(forType: .string) else { return nil }
-        let trimmed = content.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return nil }
-
-        let isKey = KeyMasking.looksLikeAPIKey(trimmed)
-        let item = ClipboardItem(content: trimmed, isAPIKey: isKey)
-        return item
-    }
-
     func startMonitoring(onClipboardChange: @escaping (ClipboardItem) -> Void) {
-        timer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
-            guard let self, let item = self.checkClipboard() else { return }
-            DispatchQueue.main.async {
-                self.latestItem = item
-                self.history.insert(item, at: 0)
-                if self.history.count > 100 { self.history.removeLast() }
-                onClipboardChange(item)
-            }
+        self.onChange = onClipboardChange
+        // RunLoop.main에서 직접 실행 — DispatchQueue 이중 디스패치 없음
+        timer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
+            self?.poll()
         }
     }
 
     func stopMonitoring() {
         timer?.invalidate()
         timer = nil
+        onChange = nil
     }
 
-    func copyToClipboard(_ text: String) {
-        NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString(text, forType: .string)
-        lastChangeCount = NSPasteboard.general.changeCount
+    private func poll() {
+        let currentCount = NSPasteboard.general.changeCount
+        guard currentCount != lastChangeCount else { return }
+        lastChangeCount = currentCount
+
+        guard let content = NSPasteboard.general.string(forType: .string) else { return }
+        let trimmed = content.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+
+        let item = ClipboardItem(
+            content: trimmed,
+            isAPIKey: KeyMasking.looksLikeAPIKey(trimmed)
+        )
+        onChange?(item)
     }
 }

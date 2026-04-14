@@ -7,7 +7,14 @@ final class ProviderRepository {
     init(db: DatabaseManager) { self.db = db }
 
     func save(_ provider: Provider) throws {
-        try db.dbQueue.write { db in try ProviderRecord(provider).save(db) }
+        try db.dbQueue.write { db in
+            let record = ProviderRecord(provider)
+            if try ProviderRecord.fetchOne(db, key: record.id) != nil {
+                try record.update(db)
+            } else {
+                try record.insert(db)
+            }
+        }
     }
 
     func fetchAll() throws -> [Provider] {

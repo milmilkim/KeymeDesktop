@@ -3,56 +3,130 @@ import SwiftUI
 struct KeyListView: View {
     @ObservedObject var vm: KeyListViewModel
     let onPlayground: (KeyEntry, Provider) -> Void
+    var onEdit: ((KeyEntry) -> Void)?
 
     var body: some View {
         VStack(spacing: 0) {
+            // Search + Filter
             HStack(spacing: 8) {
-                HStack(spacing: 6) {
-                    Image(systemName: "magnifyingglass").font(.system(size: 11)).foregroundColor(Theme.textSecondary)
-                    TextField("search keys, tags, providers...", text: $vm.searchQuery)
-                        .font(.system(size: 11, design: .monospaced)).textFieldStyle(.plain)
-                }
-                .padding(6).background(Color.white.opacity(0.03))
-                .overlay(RoundedRectangle(cornerRadius: 6).stroke(Theme.border)).cornerRadius(6)
+                TextField("Search keys, tags, providers...", text: $vm.searchQuery)
+                    .textFieldStyle(.roundedBorder)
+                    .font(Theme.fontMonoSmall)
 
                 Picker("", selection: $vm.selectedProviderID) {
-                    Text("all providers").tag(nil as UUID?)
+                    Text("All Providers").tag(nil as UUID?)
                     ForEach(vm.providers) { p in Text(p.name).tag(p.id as UUID?) }
-                }.font(.system(size: 10, design: .monospaced)).frame(width: 160)
+                }
+                .frame(width: 160)
             }
-            .padding(.horizontal, 14).padding(.vertical, 10)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 10)
 
-            Divider().background(Theme.border)
+            Divider()
 
-            ScrollView {
-                LazyVStack(spacing: 0) {
-                    ForEach(vm.filteredEntries) { entry in
-                        KeyRowView(
-                            entry: entry,
-                            providerName: vm.providerName(for: entry),
-                            isRevealed: vm.revealedKeyIDs.contains(entry.id),
-                            dashboardURL: vm.provider(for: entry)?.dashboardURL,
-                            onReveal: { Task { await vm.revealKey(id: entry.id) } },
-                            onCopy: { Task { await vm.copyKey(entry) } },
-                            onPlayground: { if let p = vm.provider(for: entry) { onPlayground(entry, p) } },
-                            onDelete: { Task { await vm.deleteEntry(id: entry.id) } }
-                        )
-                        Divider().background(Theme.border)
+            if vm.filteredEntries.isEmpty {
+                VStack(spacing: 8) {
+                    Image(systemName: "key")
+                        .font(.system(size: 32))
+                        .foregroundColor(Theme.textMuted)
+                    Text("No keys yet")
+                        .font(Theme.fontMono)
+                        .foregroundColor(Theme.textSecondary)
+                    Text("Add a key with the button above or ⌘⇧K")
+                        .font(Theme.fontMonoSmall)
+                        .foregroundColor(Theme.textMuted)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                List(vm.filteredEntries) { entry in
+                    let provider = vm.provider(for: entry)
+                    HStack {
+                        VStack(alignment: .leading, spacing: 2) {
+                            HStack(spacing: 6) {
+                                Text(vm.providerName(for: entry))
+                                    .font(Theme.fontMonoSmall)
+                                    .foregroundColor(Theme.accent)
+                                Text(entry.alias)
+                                    .font(Theme.fontMono)
+                            }
+                            if !entry.tags.isEmpty {
+                                HStack(spacing: 4) {
+                                    ForEach(entry.tags, id: \.self) { tag in
+                                        Text(tag)
+                                            .font(.caption2)
+                                            .padding(.horizontal, 4)
+                                            .padding(.vertical, 1)
+                                            .background(Theme.accentSubtle)
+                                            .cornerRadius(3)
+                                    }
+                                }
+                            }
+                        }
+
+                        Spacer()
+
+                        Text(vm.revealedKeyIDs.contains(entry.id) ? entry.apiKey : KeyMasking.mask(entry.apiKey))
+                            .font(Theme.fontMonoSmall)
+                            .foregroundColor(Theme.textSecondary)
+                            .textSelection(.enabled)
+
+                        // Actions
+                        Button { Task { await vm.revealKey(id: entry.id) } } label: {
+                            Image(systemName: vm.revealedKeyIDs.contains(entry.id) ? "eye.slash" : "eye")
+                        }
+                        .buttonStyle(.borderless)
+                        .help("Reveal key")
+
+                        Button { Task { await vm.copyKey(entry) } } label: {
+                            Image(systemName: "doc.on.doc")
+                        }
+                        .buttonStyle(.borderless)
+                        .help("Copy key")
+
+                        if let p = provider {
+                            Button { onPlayground(entry, p) } label: {
+                                Image(systemName: "play.fill")
+                            }
+                            .buttonStyle(.borderless)
+                            .help("Open in Playground")
+                        }
+
+                        if let url = provider?.dashboardURL, let link = URL(string: url) {
+                            Link(destination: link) {
+                                Image(systemName: "arrow.up.right.square")
+                            }
+                            .help("Open dashboard")
+                        }
+
+                        Button { onEdit?(entry) } label: {
+                            Image(systemName: "pencil")
+                        }
+                        .buttonStyle(.borderless)
+                        .help("Edit key")
+
+                        Button { Task { await vm.deleteEntry(id: entry.id) } } label: {
+                            Image(systemName: "trash")
+                        }
+                        .buttonStyle(.borderless)
+                        .foregroundColor(Theme.danger)
+                        .help("Delete key")
                     }
                 }
             }
 
-            Divider().background(Theme.border)
+            Divider()
             HStack {
                 Text("\(vm.filteredEntries.count) keys · \(vm.providers.count) providers")
-                    .font(.system(size: 9, design: .monospaced)).foregroundColor(Theme.textMuted)
+                    .font(Theme.fontMonoSmall)
+                    .foregroundColor(Theme.textMuted)
                 Spacer()
                 Text("⌘⇧K quick save")
-                    .font(.system(size: 9, design: .monospaced)).foregroundColor(Theme.textMuted)
+                    .font(Theme.fontMonoSmall)
+                    .foregroundColor(Theme.textMuted)
             }
-            .padding(.horizontal, 14).padding(.vertical, 6)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 6)
         }
-        .background(Theme.bgPrimary)
         .task { await vm.load() }
     }
 }

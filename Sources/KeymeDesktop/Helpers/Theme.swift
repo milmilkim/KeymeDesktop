@@ -5,16 +5,17 @@ enum Theme {
     static let fontMonoSmall = Font.system(.caption, design: .monospaced)
     static let fontMonoLarge = Font.system(.title3, design: .monospaced)
 
-    static let bgPrimary = Color(hex: "#1a1a2e")
-    static let bgSecondary = Color(hex: "#16213e")
-    static let bgHover = Color.white.opacity(0.03)
-    static let textPrimary = Color(hex: "#e0e0e0")
-    static let textSecondary = Color(hex: "#8a8a8a")
-    static let textMuted = Color(hex: "#555555")
-    static let accent = Color(hex: "#00d4aa")
-    static let accentSubtle = Color(hex: "#00d4aa").opacity(0.12)
-    static let border = Color.white.opacity(0.06)
-    static let danger = Color(hex: "#ff6b6b")
+    // macOS 네이티브 시스템 색상 사용
+    static let bgPrimary = Color(nsColor: .windowBackgroundColor)
+    static let bgSecondary = Color(nsColor: .controlBackgroundColor)
+    static let bgHover = Color(nsColor: .selectedContentBackgroundColor).opacity(0.1)
+    static let textPrimary = Color(nsColor: .labelColor)
+    static let textSecondary = Color(nsColor: .secondaryLabelColor)
+    static let textMuted = Color(nsColor: .tertiaryLabelColor)
+    static let accent = Color.accentColor
+    static let accentSubtle = Color.accentColor.opacity(0.12)
+    static let border = Color(nsColor: .separatorColor)
+    static let danger = Color.red
 }
 
 extension Color {

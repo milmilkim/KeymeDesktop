@@ -7,7 +7,11 @@ final class MainWindowController {
     func show(contentView: some View) {
         if let existing = window, existing.isVisible {
             existing.makeKeyAndOrderFront(nil)
-            NSApp.activate(ignoringOtherApps: true)
+            if #available(macOS 14.0, *) {
+                NSApp.activate()
+            } else {
+                NSApp.activate(ignoringOtherApps: true)
+            }
             return
         }
 
@@ -17,13 +21,21 @@ final class MainWindowController {
             backing: .buffered,
             defer: false
         )
-        w.title = "keyme"
-        w.titlebarAppearsTransparent = true
-        w.backgroundColor = NSColor(Theme.bgPrimary)
+        w.title = "Keyme"
         w.contentView = NSHostingView(rootView: contentView)
+        w.isReleasedWhenClosed = false
+        w.level = .normal
         w.center()
+
+        // LSUIElement 앱에서 윈도우를 제대로 띄우려면
+        // 먼저 activate 하고 나서 윈도우를 보여줘야 함
+        NSApp.setActivationPolicy(.regular)
+        if #available(macOS 14.0, *) {
+            NSApp.activate()
+        } else {
+            NSApp.activate(ignoringOtherApps: true)
+        }
         w.makeKeyAndOrderFront(nil)
-        NSApp.activate(ignoringOtherApps: true)
 
         self.window = w
     }

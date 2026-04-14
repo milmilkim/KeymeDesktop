@@ -17,8 +17,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var hotkeyService: HotkeyService!
     private var quickSavePanel: QuickSavePanelController!
     private var quickSaveVM: QuickSaveViewModel!
-    private var clipboardMonitor: ClipboardMonitor!
-    private var toastWindow: ClipboardToastWindow!
     private var mainWindowController: MainWindowController!
     private var keyListVM: KeyListViewModel!
     private var playgroundVM: PlaygroundViewModel!
@@ -26,6 +24,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         appState = try! AppState()
+
         miniPanelVM = MiniPanelViewModel(
             providerRepo: appState.providerRepo,
             keyRepo: appState.keyRepo,
@@ -39,50 +38,45 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         popover.contentViewController = NSHostingController(
             rootView: MiniPanelView(vm: miniPanelVM, onOpenMain: { [weak self] in
                 self?.openMainWindow()
+            }, onAddKey: { [weak self] in
+                self?.popover.performClose(nil)
+                self?.showQuickSave()
             })
         )
 
-        clipboardMonitor = ClipboardMonitor()
         quickSaveVM = QuickSaveViewModel(
             providerRepo: appState.providerRepo,
-            keyRepo: appState.keyRepo,
-            clipboardMonitor: clipboardMonitor
+            keyRepo: appState.keyRepo
         )
         quickSavePanel = QuickSavePanelController()
-        toastWindow = ClipboardToastWindow()
 
         hotkeyService = HotkeyService { [weak self] in
             self?.showQuickSave()
         }
         hotkeyService.register()
 
-        clipboardMonitor.startMonitoring { [weak self] item in
-            self?.toastWindow.show(item: item) {
-                self?.showQuickSave()
-            }
-        }
-
         keyListVM = KeyListViewModel(providerRepo: appState.providerRepo, keyRepo: appState.keyRepo, authService: appState.authService)
         playgroundVM = PlaygroundViewModel()
-        let syncServer = SyncServer(db: appState.db)
-        syncVM = SyncViewModel(server: syncServer)
+        syncVM = SyncViewModel(server: SyncServer(db: appState.db))
         mainWindowController = MainWindowController()
 
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         if let button = statusItem.button {
             button.image = NSImage(systemSymbolName: "key.fill", accessibilityDescription: "Keyme")
             button.image?.size = NSSize(width: 16, height: 16)
-            button.action = #selector(togglePopover)
+            button.action = #selector(togglePopover(_:))
             button.target = self
         }
     }
 
-    @objc private func togglePopover() {
-        guard let button = statusItem.button else { return }
+    @objc private func togglePopover(_ sender: NSStatusBarButton) {
         if popover.isShown {
             popover.performClose(nil)
         } else {
-            popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
+            // 열 때마다 최신 데이터 로드
+            Task { await miniPanelVM.load() }
+            popover.show(relativeTo: sender.bounds, of: sender, preferredEdge: .minY)
+            popover.contentViewController?.view.window?.makeKey()
         }
     }
 
@@ -101,7 +95,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 keyListVM: keyListVM,
                 playgroundVM: playgroundVM,
                 syncVM: syncVM,
-                providerRepo: appState.providerRepo
+                providerRepo: appState.providerRepo,
+                keyRepo: appState.keyRepo
             )
         )
     }
