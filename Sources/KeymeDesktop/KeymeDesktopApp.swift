@@ -19,6 +19,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var quickSaveVM: QuickSaveViewModel!
     private var clipboardMonitor: ClipboardMonitor!
     private var toastWindow: ClipboardToastWindow!
+    private var mainWindowController: MainWindowController!
+    private var keyListVM: KeyListViewModel!
+    private var playgroundVM: PlaygroundViewModel!
+    private var syncVM: SyncViewModel!
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         appState = try! AppState()
@@ -58,6 +62,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
         }
 
+        keyListVM = KeyListViewModel(providerRepo: appState.providerRepo, keyRepo: appState.keyRepo, authService: appState.authService)
+        playgroundVM = PlaygroundViewModel()
+        let syncServer = SyncServer(db: appState.db)
+        syncVM = SyncViewModel(server: syncServer)
+        mainWindowController = MainWindowController()
+
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         if let button = statusItem.button {
             button.image = NSImage(systemSymbolName: "key.fill", accessibilityDescription: "Keyme")
@@ -86,6 +96,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func openMainWindow() {
         popover.performClose(nil)
-        // TODO: Layer 4 main window (Task 9)
+        mainWindowController.show(contentView:
+            MainContentView(
+                keyListVM: keyListVM,
+                playgroundVM: playgroundVM,
+                syncVM: syncVM,
+                providerRepo: appState.providerRepo
+            )
+        )
     }
 }
